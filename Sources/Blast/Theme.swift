@@ -1,5 +1,25 @@
 import SwiftUI
 
+// MARK: - Hex color convenience
+
+extension Color {
+    init(hex: String) {
+        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        var int: UInt64 = 0
+        Scanner(string: hex).scanHexInt64(&int)
+        let a, r, g, b: UInt64
+        switch hex.count {
+        case 6:
+            (a, r, g, b) = (255, (int >> 16) & 0xFF, (int >> 8) & 0xFF, int & 0xFF)
+        case 8:
+            (a, r, g, b) = ((int >> 24) & 0xFF, (int >> 16) & 0xFF, (int >> 8) & 0xFF, int & 0xFF)
+        default:
+            (a, r, g, b) = (255, 0, 0, 0)
+        }
+        self.init(.sRGB, red: Double(r) / 255, green: Double(g) / 255, blue: Double(b) / 255, opacity: Double(a) / 255)
+    }
+}
+
 // MARK: - Theme
 
 struct Theme {
@@ -33,56 +53,56 @@ struct Theme {
 extension Theme {
     /// Deep space — dark navy with violet asks
     static let midnight = Theme(
-        backgroundTop: Color(hue: 0.64, saturation: 0.25, brightness: 0.10),
-        backgroundBottom: Color(hue: 0.64, saturation: 0.30, brightness: 0.05),
+        backgroundTop: Color(hex: "#13141A"),
+        backgroundBottom: Color(hex: "#09090D"),
         surfaceFill: .ultraThinMaterial,
-        surfaceStroke: Color.white.opacity(0.08),
-        navigationAccent: Color(hue: 0.58, saturation: 0.7, brightness: 0.9),
-        actionAccent: Color(hue: 0.54, saturation: 0.8, brightness: 0.95),
-        askAccent: Color(hue: 0.78, saturation: 0.65, brightness: 0.88),
+        surfaceStroke: Color(hex: "#FFFFFF14"),
+        navigationAccent: Color(hex: "#4598E6"),
+        actionAccent: Color(hex: "#30C4F2"),
+        askAccent: Color(hex: "#B24FE0"),
         primaryText: .white,
-        secondaryText: Color.white.opacity(0.55),
-        tertiaryText: Color.white.opacity(0.3),
+        secondaryText: Color(hex: "#FFFFFF8C"),
+        tertiaryText: Color(hex: "#FFFFFF4D"),
         barCornerRadius: 18,
         barHorizontalPadding: 16,
-        destinationBackground: Color(hue: 0.64, saturation: 0.25, brightness: 0.08),
-        loadBarColors: [Color(hue: 0.58, saturation: 0.7, brightness: 0.9), Color(hue: 0.78, saturation: 0.65, brightness: 0.88)]
+        destinationBackground: Color(hex: "#0F1014"),
+        loadBarColors: [Color(hex: "#4598E6"), Color(hex: "#B24FE0")]
     )
 
     /// Carbon — near-black with electric-green highlights
     static let carbon = Theme(
-        backgroundTop: Color(white: 0.07),
-        backgroundBottom: Color(white: 0.03),
+        backgroundTop: Color(hex: "#121212"),
+        backgroundBottom: Color(hex: "#080808"),
         surfaceFill: .ultraThinMaterial,
-        surfaceStroke: Color.white.opacity(0.06),
-        navigationAccent: Color(hue: 0.38, saturation: 0.85, brightness: 0.72),
-        actionAccent: Color(hue: 0.14, saturation: 0.9, brightness: 0.95),
-        askAccent: Color(hue: 0.48, saturation: 0.75, brightness: 0.78),
+        surfaceStroke: Color(hex: "#FFFFFF0F"),
+        navigationAccent: Color(hex: "#1CB847"),
+        actionAccent: Color(hex: "#F2CF18"),
+        askAccent: Color(hex: "#32C7B5"),
         primaryText: .white,
-        secondaryText: Color.white.opacity(0.5),
-        tertiaryText: Color.white.opacity(0.28),
+        secondaryText: Color(hex: "#FFFFFF80"),
+        tertiaryText: Color(hex: "#FFFFFF47"),
         barCornerRadius: 14,
         barHorizontalPadding: 16,
-        destinationBackground: Color(white: 0.06),
-        loadBarColors: [Color(hue: 0.38, saturation: 0.85, brightness: 0.72), Color(hue: 0.48, saturation: 0.75, brightness: 0.78)]
+        destinationBackground: Color(hex: "#0F0F0F"),
+        loadBarColors: [Color(hex: "#1CB847"), Color(hex: "#32C7B5")]
     )
 
     /// Sunset — warm near-black with amber and rose accents
     static let sunset = Theme(
-        backgroundTop: Color(hue: 0.06, saturation: 0.18, brightness: 0.11),
-        backgroundBottom: Color(hue: 0.06, saturation: 0.22, brightness: 0.05),
+        backgroundTop: Color(hex: "#1C1917"),
+        backgroundBottom: Color(hex: "#0D0B0A"),
         surfaceFill: .ultraThinMaterial,
-        surfaceStroke: Color.white.opacity(0.07),
-        navigationAccent: Color(hue: 0.08, saturation: 0.85, brightness: 0.95),
-        actionAccent: Color(hue: 0.12, saturation: 0.9, brightness: 0.95),
-        askAccent: Color(hue: 0.95, saturation: 0.65, brightness: 0.88),
+        surfaceStroke: Color(hex: "#FFFFFF12"),
+        navigationAccent: Color(hex: "#F28724"),
+        actionAccent: Color(hex: "#F2B518"),
+        askAccent: Color(hex: "#E04F7A"),
         primaryText: .white,
-        secondaryText: Color.white.opacity(0.55),
-        tertiaryText: Color.white.opacity(0.3),
+        secondaryText: Color(hex: "#FFFFFF8C"),
+        tertiaryText: Color(hex: "#FFFFFF4D"),
         barCornerRadius: 20,
         barHorizontalPadding: 16,
-        destinationBackground: Color(hue: 0.06, saturation: 0.18, brightness: 0.09),
-        loadBarColors: [Color(hue: 0.08, saturation: 0.85, brightness: 0.95), Color(hue: 0.95, saturation: 0.65, brightness: 0.88)]
+        destinationBackground: Color(hex: "#171413"),
+        loadBarColors: [Color(hex: "#F28724"), Color(hex: "#E04F7A")]
     )
 }
 
@@ -118,9 +138,9 @@ enum ThemePreset: String, CaseIterable, Identifiable {
 
     var preview: Color {
         switch self {
-        case .midnight: return Color(hue: 0.78, saturation: 0.65, brightness: 0.88)
-        case .carbon: return Color(hue: 0.38, saturation: 0.85, brightness: 0.72)
-        case .sunset: return Color(hue: 0.08, saturation: 0.85, brightness: 0.95)
+        case .midnight: return Color(hex: "#B24FE0")
+        case .carbon: return Color(hex: "#1CB847")
+        case .sunset: return Color(hex: "#F28724")
         }
     }
 }

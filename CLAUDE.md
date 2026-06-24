@@ -1,94 +1,114 @@
-# Blast
+# Blast — Codebase Guide
 
-A single-screen iOS demo: a one-field command bar that routes what you type to **open**, **search**, or **ask**. Built to showcase animation, gesture, and UI-state craft. Backend is entirely faked; the interaction is the product.
+This document is for anyone adding to or modifying Blast. Read it before touching any file.
 
-## Skills to use
+---
 
-This machine has two globally installed agent skills. Use them.
+## Architecture in one sentence
 
-- **swiftui-expert-skill** (`~/.agents/skills/swiftui-expert-skill`) — consult for all SwiftUI layout, animation, and state patterns. This is the primary skill for this build; the entire deliverable is SwiftUI craft.
-- **swift-concurrency** (`~/.agents/skills/swift-concurrency`) — consult for the fake async work (the "thinking…" delay in ask mode) and any `Task`/actor usage. Keep concurrency minimal here, but do it correctly per the skill rather than ad hoc.
+A single `@Observable` view model owns an enum state machine. The view renders from it. Nothing else drives UI.
 
-## Purpose / context
+---
 
-Portfolio piece for an iOS role at a mobile-browser company. Reviewers will play with it for ~20 seconds and look for: smooth interruptible animation, a clean explicit state machine, gesture handling that feels right, and the "last 10%" polish (haptics, spring tuning, keyboard tracking). Do not build a real browser or a real LLM call. Hardcode everything behind the bar.
+## State machine
 
-## Scope discipline
-
-- One screen. The command bar IS the app.
-- Target: 1–2 Swift files. Resist growth.
-- No networking. No persistence. No external dependencies.
-- iOS 17+ (use `@Observable`, modern SwiftUI animation APIs).
-- A README with a 5-second simulator GIF at the top is part of the deliverable. No GIF = no signal.
-
-## The core interaction
-
-A search/command field pinned near the bottom of the screen (thumb-reachable), with a results list above it that updates live as the user types. One field does triple duty depending on input:
-
-1. **Navigation mode** — input matches hardcoded bookmarks/history. Rows filter live. Tapping a row "opens" it (show a toast / placeholder, e.g. "Opening github.com").
-2. **Action mode** — input starts with a known keyword (`yt`, `g`, `gh`). Top row becomes an action: e.g. `yt cats` → "Search YouTube for 'cats'". Return executes (toast).
-3. **Ask mode** — input is neither a URL-ish string nor a known keyword; it reads like a question. Accent color shifts, hint changes to "↵ to ask", return triggers a fake "thinking…" shimmer then a canned stub answer.
-
-The morph between navigation and ask mode is the headline craft moment. Make it animated and deliberate.
-
-## State machine (single source of truth)
-
-Model state explicitly. Do not scatter booleans across the view.
+`PaletteState` in `PaletteViewModel.swift` is the single source of truth. Every visible change in the UI — including animations — is a consequence of a state transition.
 
 ```swift
 enum PaletteState: Equatable {
-    case dismissed
-    case presenting          // animating in
-    case idle                // empty input, showing default suggestions
-    case filtering(String)   // navigation mode
-    case action(String)      // keyword-routed action mode
-    case asking(String)      // LLM/ask mode
-    case thinking(String)    // fake LLM in-flight
-    case dismissing
+    case dismissed    // Pre-launch only. Background is transparent.
+    case presenting   // Reserved, not currently used.
+    case idle         // Empty input. IdleHomeView is visible.
+    case filtering(String)  // Input matches a bookmark.
+    case action(String)     // Input starts with a keyword token.
+    case asking(String)     // Input reads like a question.
+    case thinking(String)   // Fake LLM in-flight.
+    case dismissing   // Bar is animating out. Resets to .idle after ~480ms.
 }
 ```
 
-Drive transitions from an `@Observable` view model. Input changes and gestures mutate state; the view renders from it. Routing logic (which mode a given string maps to) lives in the view model, not the view.
+**Rules:**
+- Never scatter `Bool` flags across the view. Add a state case instead.
+- `dismissing` always self-heals to `idle` — `dismiss()` schedules the reset. Do not add a path that leaves state permanently at `dismissing` or `dismissed`.
+- Routing logic lives in `PaletteViewModel.route(_:)`, not in any view.
 
-### Routing rules (keep simple, deterministic)
+---
 
-- Empty → `.idle`
-- Starts with known keyword token (`yt `, `g `, `gh `) → `.action`
-- Looks like a domain/bookmark match (contains `.`, or prefix-matches a hardcoded entry) → `.filtering`
-- Otherwise, if it ends in `?` or has 3+ words → `.asking`
-- Tune thresholds by feel; correctness matters less than the transition feeling intentional.
+## Routing rules
 
-## The last-10% details (these are what get the callback)
+`route(_:)` is called on every keystroke. It maps the current input string to a state. The priority order is fixed:
 
-- **Springs, not easing.** Use `.spring(response:dampingFraction:)` everywhere motion happens. Tune `response` and `dampingFraction` by hand until it feels right. No `.easeInOut`.
-- **Rows slide, don't pop.** Stable `id`s on result rows + `.animation` so reordering animates positionally.
-- **Drag-to-dismiss with velocity.** Dragging the bar down dismisses. A fast flick dismisses even at ~30% drag distance; a slow drag needs ~60%. Rubber-band resistance past the top edge.
-- **Interruptibility.** Grabbing the bar mid-present must cancel cleanly and hand control to the finger — not queue or stutter. This is the senior signal; get it right.
-- **Mode morph.** Navigation → ask transition animates accent color + hint text together, not as a hard swap.
-- **Haptics.** `UIImpactFeedbackGenerator` on mode switch (light) and on execute (medium). Cheap, large perceived-polish payoff.
-- **Keyboard tracking.** The bar tracks the keyboard frame so it sits just above it without jank.
+1. **Keyword action** — input starts with a known token + space (`yt `, `g `, `gh `). Keyword map is `keywordActions` in the view model.
+2. **Navigation** — input contains `.` or prefix-matches a bookmark title/url. Bookmark list is `bookmarks` in the view model.
+3. **Ask** — input ends in `?` or has 3+ words.
+4. **Default** — filtering with no matches (user is mid-type).
 
-## What to fake (do not build)
+To add a new keyword, append to `keywordActions`. To add a bookmark, append to `bookmarks`. No other changes needed.
 
-- Bookmarks/history: a hardcoded array of ~12 entries (title + fake URL + SF Symbol).
-- Keyword actions: a small static map (`yt` → YouTube search, `g` → Google, `gh` → GitHub).
-- Ask mode: on return, show a shimmer placeholder for ~1.2s, then a hardcoded stub answer string.
-- "Opening" / "Searching": a transient toast or overlay. No real web view needed (a placeholder `Text` is fine).
+---
 
-## Build order (suggested)
+## Theme system
 
-1. Static layout: field + results list, no animation. Get the look right.
-2. View model + `PaletteState` + routing logic. Wire input → state → rendered rows.
-3. Present/dismiss animation with springs.
-4. Drag-to-dismiss with velocity + rubber-banding + interruptibility.
-5. Mode morph (color + hint) between navigation and ask.
-6. Haptics + keyboard tracking.
-7. Polish pass: tune every spring by feel. Timebox this — "good and shipped" beats "perfect and on your machine."
-8. README + GIF.
+`Theme.swift` defines every color, material, radius, and spacing token. Views read from `@Environment(\.theme)`.
 
-## Anti-goals
+**To add a new preset:**
+1. Add a `static let` on `Theme` with all properties filled.
+2. Add a case to `ThemePreset` and wire it to the new `Theme` instance.
+3. Add a `preview: Color` for the picker dot.
 
-- No real browser engine, web view content, or networking.
-- No settings screen, onboarding, or multi-screen navigation.
-- No third-party animation libraries — native SwiftUI only (the point is to show you can do it).
-- Do not over-architect. This is a demo, not a framework.
+**Never hardcode colors in views.** Use `theme.navigationAccent`, `theme.askAccent`, `theme.primaryText`, etc. If a new semantic color is needed, add it to the `Theme` struct first.
+
+---
+
+## Animation rules
+
+- **Springs only.** Use `.spring(response:dampingFraction:)` for every motion. No `.easeInOut`, no `.linear` except for shimmer loops.
+- **Always pass `value:`** to `.animation(_:value:)`. The no-value form is banned.
+- **Use `withAnimation` for gestures and events; use `.animation(_:value:)` for state-driven changes.** Don't mix them on the same property.
+- Haptics fire via `.sensoryFeedback(_:trigger:)` — never `UIImpactFeedbackGenerator` directly.
+
+---
+
+## Adding a new result row type
+
+1. Add a case to `PaletteState` if the new mode needs distinct behavior.
+2. Add the corresponding `route` branch in `PaletteViewModel.route(_:)`.
+3. Add a `case` to `ResultsList.body`'s switch in `ContentView.swift`.
+4. Create a new row view (follow `BookmarkRow` / `ActionRow` as the pattern — `Button` wrapper, `.plain` style, `theme` from environment).
+5. If tapping should open a destination, add a case to `Destination` in `PaletteViewModel.swift` and handle it in `DestinationView.pageCanvas`.
+
+---
+
+## Adding a new destination screen
+
+`Destination` is defined in `PaletteViewModel.swift` (not `DestinationView.swift`) because `@Observable` macro expansion needs it in scope at compile time.
+
+1. Add a case to `Destination`.
+2. Handle it in `DestinationView.pageCanvas` with a new `Mock*View`.
+3. Set `vm.destination` from whichever action triggers it.
+
+---
+
+## File map
+
+| File | Responsibility |
+|------|---------------|
+| `PaletteViewModel.swift` | State machine, routing, all fake data, `Destination` enum |
+| `ContentView.swift` | Root layout, command bar, results list, drag gesture, theme picker, row views, shimmer, toast |
+| `IdleHomeView.swift` | Logo, tip chips, recent rows, `FlowLayout` |
+| `DestinationView.swift` | Mock browser chrome + three canvas types (page / search / answer) |
+| `Theme.swift` | `Theme` struct, presets, `EnvironmentValues` extension, `ThemePreset` enum |
+| `BlastApp.swift` | Entry point only — no logic here |
+| `Project.swift` | Tuist manifest — edit to change bundle ID, deployment target, or add targets |
+
+---
+
+## Build
+
+```bash
+brew install tuist   # first time only
+tuist generate
+open Blast.xcworkspace
+```
+
+Target: iOS 17+. No external dependencies. After adding or removing source files, re-run `tuist generate` before building.

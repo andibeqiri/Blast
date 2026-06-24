@@ -12,7 +12,7 @@ A single `@Observable` view model owns an enum state machine. The view renders f
 
 ## State machine
 
-`PaletteState` in `PaletteViewModel.swift` is the single source of truth. Every visible change in the UI — including animations — is a consequence of a state transition.
+`PaletteState` in `Models/PaletteState.swift` is the single source of truth. Every visible change in the UI — including animations — is a consequence of a state transition.
 
 ```swift
 enum PaletteState: Equatable {
@@ -43,16 +43,16 @@ enum PaletteState: Equatable {
 3. **Ask** — input ends in `?` or has 3+ words.
 4. **Default** — filtering with no matches (user is mid-type).
 
-To add a new keyword, append to `keywordActions`. To add a bookmark, append to `bookmarks`. No other changes needed.
+To add a new keyword, append to `keywordActions` in `Features/Palette/PaletteViewModel.swift`. To add a bookmark, append to `bookmarks`. No other changes needed.
 
 ---
 
 ## Theme system
 
-`Theme.swift` defines every color, material, radius, and spacing token. Views read from `@Environment(\.theme)`.
+`UI/Theme/Theme.swift` defines every color, material, radius, and spacing token. Colors are specified as hex strings via `Color(hex:)`. Views read from `@Environment(\.theme)`.
 
 **To add a new preset:**
-1. Add a `static let` on `Theme` with all properties filled.
+1. Add a `static let` on `Theme` with all properties filled using hex values.
 2. Add a case to `ThemePreset` and wire it to the new `Theme` instance.
 3. Add a `preview: Color` for the picker dot.
 
@@ -71,42 +71,72 @@ To add a new keyword, append to `keywordActions`. To add a bookmark, append to `
 
 ## Adding a new result row type
 
-1. Add a case to `PaletteState` if the new mode needs distinct behavior.
-2. Add the corresponding `route` branch in `PaletteViewModel.route(_:)`.
-3. Add a `case` to `ResultsList.body`'s switch in `ContentView.swift`.
-4. Create a new row view (follow `BookmarkRow` / `ActionRow` as the pattern — `Button` wrapper, `.plain` style, `theme` from environment).
-5. If tapping should open a destination, add a case to `Destination` in `PaletteViewModel.swift` and handle it in `DestinationView.pageCanvas`.
+1. Add a case to `Models/PaletteState.swift` if the new mode needs distinct behavior.
+2. Add the corresponding `route` branch in `Features/Palette/PaletteViewModel.swift`.
+3. Add a `case` to the switch in `Features/Results/ResultsList.swift`.
+4. Create a new `*Row.swift` file in `Features/Results/` (follow `BookmarkRow` / `ActionRow` as the pattern — `Button` wrapper, `.plain` style, `theme` from environment).
+5. If tapping should open a destination, add a case to `Models/Destination.swift` and handle it in `Features/Destination/DestinationView.swift` (`pageCanvas`).
 
 ---
 
 ## Adding a new destination screen
 
-`Destination` is defined in `PaletteViewModel.swift` (not `DestinationView.swift`) because `@Observable` macro expansion needs it in scope at compile time.
+`Destination` lives in `Models/Destination.swift`.
 
 1. Add a case to `Destination`.
-2. Handle it in `DestinationView.pageCanvas` with a new `Mock*View`.
+2. Handle it in `DestinationView.pageCanvas` with a new `Mock*View` inside `Features/Destination/DestinationView.swift`.
 3. Set `vm.destination` from whichever action triggers it.
+
+---
+
+## Adding a new feature
+
+New features go in `Features/<FeatureName>/`. Each feature folder owns its views and any feature-specific sub-components. Shared, reusable UI pieces that aren't tied to a single feature live in `UI/Components/`.
 
 ---
 
 ## File map
 
-| File | Responsibility |
-|------|---------------|
-| `PaletteViewModel.swift` | State machine, routing, all fake data, `Destination` enum |
-| `ContentView.swift` | Root layout, command bar, results list, drag gesture, theme picker, row views, shimmer, toast |
-| `IdleHomeView.swift` | Logo, tip chips, recent rows, `FlowLayout` |
-| `DestinationView.swift` | Mock browser chrome + three canvas types (page / search / answer) |
-| `Theme.swift` | `Theme` struct, presets, `EnvironmentValues` extension, `ThemePreset` enum |
-| `BlastApp.swift` | Entry point only — no logic here |
-| `Project.swift` | Tuist manifest — edit to change bundle ID, deployment target, or add targets |
+```
+Sources/Blast/
+├── App/
+│   ├── BlastApp.swift          Entry point only — no logic here
+│   └── ContentView.swift       Root layout, drag gesture, palette panel coordinator
+├── Features/
+│   ├── Destination/
+│   │   └── DestinationView.swift   Mock browser chrome + page/search/answer canvases
+│   ├── Home/
+│   │   └── IdleHomeView.swift      Logo, tip chips, recent rows, FlowLayout
+│   ├── Palette/
+│   │   ├── CommandBar.swift        Text field + mode icon + clear button
+│   │   └── PaletteViewModel.swift  State machine, routing, all fake data
+│   └── Results/
+│       ├── ActionRow.swift         Keyword-action result row
+│       ├── AskRow.swift            Ask / thinking / answer result row
+│       ├── BookmarkRow.swift       Bookmark navigation result row
+│       └── ResultsList.swift       Scroll container that switches between row types
+├── Models/
+│   ├── Bookmark.swift          Bookmark data model
+│   ├── Destination.swift       Destination enum (page / search / answer)
+│   ├── KeywordAction.swift     Keyword action data model
+│   └── PaletteState.swift      PaletteState enum — the state machine cases
+└── UI/
+    ├── Components/
+    │   ├── ShimmerView.swift   Animated shimmer used during thinking state
+    │   ├── ThemePicker.swift   Floating theme-switcher widget
+    │   └── ToastView.swift     Ephemeral top-of-screen message
+    └── Theme/
+        └── Theme.swift         Theme struct, hex Color init, presets, ThemePreset enum
+```
+
+`Project.swift` — Tuist manifest. Edit to change bundle ID, deployment target, or add targets.
 
 ---
 
 ## Build
 
 ```bash
-brew install tuist   # first time only
+mise install   # installs Tuist (version pinned in .mise.toml)
 tuist generate
 open Blast.xcworkspace
 ```

@@ -1,47 +1,5 @@
 import SwiftUI
 
-// MARK: - Domain types
-
-struct Bookmark: Identifiable {
-    let id = UUID()
-    let title: String
-    let url: String
-    let icon: String
-}
-
-struct KeywordAction {
-    let keyword: String
-    let label: String
-    let urlTemplate: String
-}
-
-enum Destination: Identifiable, Equatable {
-    case page(title: String, url: String, icon: String)
-    case search(engine: String, query: String, url: String)
-    case answer(query: String, text: String)
-
-    var id: String {
-        switch self {
-        case .page(_, let url, _): return "page:\(url)"
-        case .search(let engine, let query, _): return "search:\(engine):\(query)"
-        case .answer(let query, _): return "answer:\(query)"
-        }
-    }
-}
-
-enum PaletteState: Equatable {
-    case dismissed
-    case presenting
-    case idle
-    case filtering(String)
-    case action(String)
-    case asking(String)
-    case thinking(String)
-    case dismissing
-}
-
-// MARK: - ViewModel
-
 @Observable
 @MainActor
 final class PaletteViewModel {
